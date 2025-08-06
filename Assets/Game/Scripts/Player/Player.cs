@@ -1,48 +1,44 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class Player : MonoBehaviour
 {
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float kickForce = 10f;
-    private Vector2 _moveInput;
-    private Rigidbody _rb;
-    private GameObject _ball;
-    public bool hasBall;
+    [Header("Movement Settings")]
+    public float moveSpeed = 5f;
+    public float rotationSpeed = 10f;
 
-    void Awake()
+    private Rigidbody _rb;
+    private Vector3 _moveInput;
+
+    void Start()
     {
         _rb = GetComponent<Rigidbody>();
+        _rb.freezeRotation = true; // Prevent physics from interfering with rotation
     }
 
-    // Movement (WASD)
-    public void OnMove(InputAction.CallbackContext context)
+    void Update()
     {
-        _moveInput = context.ReadValue<Vector2>();
-    }
-
-    // Kick (Spacebar)
-    public void OnKick(InputAction.CallbackContext context)
-    {
-        if (context.performed && hasBall && _ball != null)
-        {
-            _ball.GetComponent<Rigidbody>().AddForce(transform.forward * kickForce, ForceMode.Impulse);
-            hasBall = false;
-        }
+        // Get input (WASD or Arrow Keys)
+        float horizontal = Input.GetAxis("Horizontal");
+        float vertical = Input.GetAxis("Vertical");
+        _moveInput = new Vector3(horizontal, 0, vertical).normalized;
     }
 
     void FixedUpdate()
     {
-        // Movement
-        _rb.linearVelocity = new Vector3(_moveInput.x, 0, _moveInput.y) * moveSpeed;
-    }
-
-    void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Ball"))
+        // Move the player (using velocity)
+        if (_moveInput != Vector3.zero)
         {
-            _ball = other.gameObject;
-            hasBall = true;
+            // Apply movement in world space
+            Vector3 moveVelocity = _moveInput * moveSpeed;
+            _rb.linearVelocity = new Vector3(moveVelocity.x, _rb.linearVelocity.y, moveVelocity.z); // Preserve gravity
+
+            // Rotate toward movement direction
+            Quaternion targetRotation = Quaternion.LookRotation(_moveInput);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+        }
+        else
+        {
+            _rb.linearVelocity = new Vector3(0, _rb.linearVelocity.y, 0); // Stop horizontal movement (keep gravity)
         }
     }
 }

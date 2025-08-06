@@ -3,57 +3,7 @@ guid: 6aa7de0378cd999419b32112eac9fc18
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects:
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1001_Diffuse
-    second: {fileID: 2800000, guid: 73186eb593c5fbf469aa22cf8fb01391, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1001_Glossiness
-    second: {fileID: 2800000, guid: 4a2e32e38ab766c4fba749520a319297, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1001_Normal
-    second: {fileID: 2800000, guid: 5caa5c037d50a554a9b5310a253335fc, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1001_Specular
-    second: {fileID: 2800000, guid: 553fc6bbefd3a3f4f88bf58dfbafed9a, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1002_Diffuse
-    second: {fileID: 2800000, guid: f73d5412f74f9064e912db235725df68, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1002_Glossiness
-    second: {fileID: 2800000, guid: 3630aebe5e1904647997a5964e735cce, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1002_Normal
-    second: {fileID: 2800000, guid: 08d6ab8836745b24c85a700cdc196590, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1002_Specular
-    second: {fileID: 2800000, guid: 365bd3f902d66f64fb9fdc7484f176a9, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1003_Diffuse
-    second: {fileID: 2800000, guid: 6750e8f2040fd25468feaff8c3176412, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: Ch08_1003_Normal
-    second: {fileID: 2800000, guid: ae0685d41ae279a41ab7a32e58df288f, type: 3}
+  externalObjects: {}
   materials:
     materialImportMode: 2
     materialName: 0
