@@ -1,149 +1,235 @@
 ﻿using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(Animator))]
-public class ThirdPersonController : MonoBehaviour
+public class SoccerPlayer : MonoBehaviour
 {
-    [Header("Movement Settings")]
+    [Header("Movement")]
     public float walkSpeed = 3f;
     public float runSpeed = 6f;
     public float rotationSpeed = 12f;
-    public float acceleration = 10f;
 
-    [Header("Ball Interaction")]
+    [Header("Ball Control")]
+    public Transform ballAnchor; // Must be assigned in Inspector!
     public float kickForce = 15f;
     public float passForce = 8f;
-    public Transform kickPoint;
-    public float kickRadius = 0.5f;
+    public float controlRadius = 0.5f;
 
-    [Header("Animation Parameters")]
-    public float animationDampTime = 0.1f;
+    [Header("Team Settings")]
+    public List<SoccerPlayer> teammates = new List<SoccerPlayer>(); // Assign teammates in Inspector
+    public float switchCooldown = 0.5f;
 
-    // Components
+    // Internal
     private CharacterController controller;
     private Animator animator;
-    private Camera mainCamera;
-
-    // Movement
-    private Vector3 moveDirection;
-    private Vector3 inputDirection;
-    private float currentSpeed;
-    private float targetSpeed;
-    private bool isRunning;
+    private Ball currentBall;
+    private bool hasBall;
+    private float lastSwitchTime;
+    private int currentTeamIndex;
 
     // Animation IDs
     private int animSpeed;
     private int animKick;
     private int animPass;
+    private bool _isActivePlayer;
+    private static SoccerPlayer _currentActivePlayer; // Track active player globally
 
-    private void Awake()
+    void Awake()
     {
         controller = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
-        mainCamera = Camera.main;
 
-        // Set animation parameter IDs
         animSpeed = Animator.StringToHash("Speed");
         animKick = Animator.StringToHash("Kick");
         animPass = Animator.StringToHash("Pass");
+
+        // Initialize all players as inactive
+        _isActivePlayer = false;
+        animator.SetFloat(animSpeed, 0f);
     }
 
-    private void Update()
+    void Start()
     {
-        HandleInput();
-        HandleMovement();
-        HandleRotation();
-        HandleKicking();
-        UpdateAnimations();
-    }
-
-    private void HandleInput()
-    {
-        // Get raw input
-        float horizontal = Input.GetAxisRaw("Horizontal");
-        float vertical = Input.GetAxisRaw("Vertical");
-        isRunning = Input.GetKey(KeyCode.LeftShift);
-
-        // Store input direction
-        inputDirection = new Vector3(horizontal, 0, vertical).normalized;
-    }
-
-    private void HandleMovement()
-    {
-        // Calculate target speed based on input and running state
-        targetSpeed = isRunning ? runSpeed : walkSpeed;
-        targetSpeed *= inputDirection.magnitude; // Scale by input magnitude
-
-        // Smoothly adjust current speed
-        currentSpeed = Mathf.Lerp(currentSpeed, targetSpeed, acceleration * Time.deltaTime);
-
-        // Convert input to world space relative to camera
-        Vector3 cameraForward = mainCamera.transform.forward;
-        cameraForward.y = 0;
-        cameraForward.Normalize();
-
-        moveDirection = (cameraForward * inputDirection.z + mainCamera.transform.right * inputDirection.x).normalized;
-        moveDirection *= currentSpeed;
-
-        // Apply movement
-        controller.Move(moveDirection * Time.deltaTime);
-    }
-
-    private void HandleRotation()
-    {
-        // Only rotate if we have movement input
-        if (inputDirection.magnitude > 0.1f)
+        // Activate first player in team automatically
+        if (teammates.Count > 0 && teammates[0] == this)
         {
-            // Calculate target rotation based on movement direction
+            SetPlayerActive(true);
+        }
+    }
+
+    void Update()
+    {
+        if (!_isActivePlayer)
+        {
+            animator.SetFloat(animSpeed, 0f);
+            return;
+        }
+
+        HandleMovement();
+        HandleBall();
+        HandleSwitching();
+    }
+
+    void HandleMovement()
+    {
+        float horizontal = Input.GetAxis("Horizontal");
+        float vertical = Input.GetAxis("Vertical");
+        bool isRunning = Input.GetKey(KeyCode.LeftShift);
+
+        Vector3 inputDir = new Vector3(horizontal, 0, vertical).normalized;
+        float targetSpeed = isRunning ? runSpeed : walkSpeed;
+
+        // Camera-relative movement
+        Vector3 camForward = Camera.main.transform.forward;
+        camForward.y = 0;
+        Vector3 moveDirection = (camForward * vertical + Camera.main.transform.right * horizontal).normalized * targetSpeed;
+
+        controller.Move(moveDirection * Time.deltaTime);
+
+        // Rotation
+        if (moveDirection != Vector3.zero)
+        {
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
+
+        // Animation
+        float speedPercent = moveDirection.magnitude / runSpeed;
+        animator.SetFloat(animSpeed, speedPercent);
     }
 
-    private void HandleKicking()
+    void HandleBall()
     {
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            animator.SetTrigger(animKick);
-            TryKickBall(kickForce);
-        }
-        else if (Input.GetKeyDown(KeyCode.Q))
-        {
-            animator.SetTrigger(animPass);
-            TryKickBall(passForce);
-        }
-    }
+        if (!hasBall) return;
 
-    private void TryKickBall(float force)
-    {
-        Collider[] hitColliders = Physics.OverlapSphere(kickPoint.position, kickRadius);
-        foreach (var collider in hitColliders)
+        if (Input.GetKeyDown(KeyCode.E)) // Shoot
         {
-            if (collider.CompareTag("Ball"))
+            Kick(transform.forward, kickForce);
+        }
+        else if (Input.GetKeyDown(KeyCode.Q)) // Pass
+        {
+            SoccerPlayer receiver = FindClosestTeammate();
+            if (receiver != null)
             {
-                Rigidbody ballRb = collider.GetComponent<Rigidbody>();
-                if (ballRb != null)
-                {
-                    Vector3 kickDirection = transform.forward;
-                    ballRb.AddForce(kickDirection * force, ForceMode.Impulse);
-                }
+                Vector3 dir = (receiver.transform.position - transform.position).normalized;
+                Kick(dir, passForce);
             }
         }
     }
 
-    private void UpdateAnimations()
+    SoccerPlayer FindClosestTeammate()
     {
-        // Convert current speed to 0-1 range for blend tree
-        float normalizedSpeed = currentSpeed / runSpeed;
-        animator.SetFloat(animSpeed, normalizedSpeed, animationDampTime, Time.deltaTime);
+        SoccerPlayer closest = null;
+        float minDistance = Mathf.Infinity;
+
+        foreach (SoccerPlayer teammate in teammates)
+        {
+            if (teammate == this || !teammate.gameObject.activeSelf) continue;
+
+            float distance = Vector3.Distance(transform.position, teammate.transform.position);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+                closest = teammate;
+            }
+        }
+        return closest;
     }
 
-    private void OnDrawGizmosSelected()
+    void HandleSwitching()
     {
-        if (kickPoint != null)
+        if (Time.time - lastSwitchTime < switchCooldown) return;
+
+        if (Input.GetKeyDown(KeyCode.Tab))
         {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(kickPoint.position, kickRadius);
+            int currentIndex = teammates.IndexOf(this);
+            int nextIndex = (currentIndex + 1) % teammates.Count;
+            teammates[nextIndex].SetPlayerActive(true);
+            lastSwitchTime = Time.time;
         }
+    }
+
+    void SwitchToNextPlayer()
+    {
+        int nextIndex = (currentTeamIndex + 1) % teammates.Count;
+        SoccerPlayer nextPlayer = teammates[nextIndex];
+
+        // Disable current player
+        SetPlayerActive(false);
+
+        // Enable new player
+        nextPlayer.SetPlayerActive(true);
+
+        // Transfer ball
+        if (hasBall && currentBall != null)
+        {
+            currentBall.Transfer(nextPlayer.ballAnchor);
+            hasBall = false;
+            nextPlayer.hasBall = true;
+            nextPlayer.currentBall = currentBall;
+            currentBall = null;
+        }
+
+        currentTeamIndex = nextIndex;
+        lastSwitchTime = Time.time;
+    }
+
+    public void SetPlayerActive(bool state)
+    {
+        _isActivePlayer = state;
+
+        // Update global reference
+        if (state)
+        {
+            if (_currentActivePlayer != null && _currentActivePlayer != this)
+            {
+                _currentActivePlayer.SetPlayerActive(false);
+            }
+            _currentActivePlayer = this;
+        }
+
+        // Visual feedback
+        if (TryGetComponent<Renderer>(out var renderer))
+        {
+            renderer.material.color = state ? Color.green : Color.white;
+        }
+    }
+
+    void Kick(Vector3 direction, float force)
+    {
+        if (currentBall == null || !currentBall.IsControlled) return;
+
+        currentBall.Kick(direction, force);
+        animator.SetTrigger(animKick);
+        hasBall = false;
+        currentBall = null;
+    }
+
+    public void SetControlled(bool state)
+    {
+        enabled = state;
+        // Add any visual feedback here (e.g., highlight player)
+    }
+
+    public bool IsControlled() => enabled;
+
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Ball") && !hasBall)
+        {
+            currentBall = other.GetComponent<Ball>();
+            if (currentBall != null && !currentBall.IsControlled)
+            {
+                currentBall.TakeControl(ballAnchor);
+                hasBall = true;
+            }
+        }
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.green;
+        if (ballAnchor != null) Gizmos.DrawWireSphere(ballAnchor.position, 0.1f);
     }
 }
